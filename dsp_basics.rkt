@@ -22,6 +22,15 @@
       (+ start-time (* i (sampling-params-T samp-params)))
   ))
 
+
+;Gets a sample for func
+;The func argument must be a function
+;f = frequency
+(define ((sample-a-func func samp-params f start-time  )  i)
+  (if (= i 0) (func (* 2 pi start-time))
+      (func (* 2 pi f (+ start-time (* i (sampling-params-T samp-params)))))
+  ))
+
 ;Returns a sample for a sin wave of a particular frequency. 
 (define ((sin-sample-point samp-params f start-time  )  i)
   (if (= i 0) (sin (* 2 pi start-time))
@@ -38,6 +47,12 @@
   (if (<= sample-value 0) 0 1)
   )
 
+
+
+  
+
+
+
 (define test-sample-params (make-sampling-params  10 1))
 
 (define test-start-time 0)
@@ -47,7 +62,10 @@
 
 
 
+
 (plot (function  (sin-sample-point test-sample-params 3 0 ) 0 plot-time))
 
 (plot (function  (square-sample-point test-sample-params 3 0 ) 0 plot-time))
 
+
+(plot (function  (sample-a-func sin test-sample-params 3 0 ) 0 plot-time))
