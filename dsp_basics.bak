@@ -20,10 +20,6 @@ Rounds up to the nearest whole number. Might need to add a window so that we don
 (define (num-samples-for-duration sample-params s)
   (ceiling(/ s (sampling-params-T sample-params))))
 
-;Gets the time for the ith sample
-(define (get-sample-time samp-params i)
-  (* (sampling-params-T samp-params) i))
-
 #|
 Gets the ith sample for a sin wave.
 |#
@@ -63,14 +59,11 @@ sample-creation-func = the function we're
 (define (create-pulse-group sample-creation-func samp-params f start-time pulse-width pri n)
   (define pri-in-seconds (* pri 1e-6))
   (define pw-in-seconds (* pulse-width 1e-6))
-  (define off-time-samples-needed (exact-ceiling (/ (+ pri-in-seconds pw-in-seconds) (sampling-params-T samp-params))))
+  (define off-time-samples-needed (exact-ceiling (/ (- pri-in-seconds pw-in-seconds) (sampling-params-T samp-params))))
   (define off-time-samples (build-list off-time-samples-needed (const '0)))
   (define on-time-samples (create-samples sample-creation-func samp-params f start-time pw-in-seconds))
 
-  (define combined-samples (for/list ([i (in-range n)]) ( cons on-time-samples off-time-samples )))
-  (flatten combined-samples)
-  ;(for/list ([i (in-range n)])pw-in-seconds)
-
+  (build-list n (const '(on-time-samples off-time-samples)))
   )
   
  
@@ -82,27 +75,24 @@ sample-creation-func = the function we're
 (define test-duration 3)
 (define test-freq 3)
 (define num-samps (num-samples-for-duration test-sample-params test-duration))
-(define test-pulse-width 1000000)
-(define test-pri 1000000)
+(define test-pulse-width 0.5)
+(define test-pri 500)
 
-;(define test-samples   (create-samples sin-wave-sample-func test-sample-params test-freq test-start-time test-duration))
-;(define x-axis    (for/list ([i (in-range (length test-samples))]) i))
+;(define test-samples   (create-samples wave-sample-func test-sample-params test-freq test-start-time test-duration))
+;(define x-axis    (for/list ([i (in-range num-samps)]) i))
+
 ;(define plot-points (map vector x-axis test-samples))
-;(plot (lines plot-points))
 
 
+;(plot (points plot-points))
 
-(plot (function  (sin-wave-sample-func test-sample-params 3 0 ) 0 test-duration))
-
-
-
-(define pulse-group-samples (create-pulse-group sin-wave-sample-func test-sample-params test-freq test-start-time test-pulse-width test-pri 5))
+ ;;(create-samples sample-func sin test-sample-params test-freq test-start-time test-duration)
+;(define x-ax (for/list ([i (in-range (num-samples-for-duration test-sample-params ))]) i))
 
 
-(define x-axis    (for/list ([i (in-range (length pulse-group-samples))]) i))
+;(plot (function  (square-func wave-sample-func test-sample-params 3 0 ) 0 test-duration))
+;(plot (function  (wave-sample-func test-sample-params 3 0 ) 0 test-duration))
 
+;(create-pulse-group wave-sample-func test-sample-params num-samps test-start-time test-pulse-width test-pri 5)
 
-
-(define plot-points (map vector x-axis pulse-group-samples))
-(plot (lines plot-points))
-
+(define a (create-samples sin-wave-sample-func test-sample-params test-freq 0 1))
