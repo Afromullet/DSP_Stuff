@@ -1,6 +1,44 @@
 #lang racket
 (require plot)
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;Utility functions
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;Converts a microsecond pulse width to seconds
+(define (pw-in-seconds pw-micro) (* pw-micro 1e-6))
+
+;Converts a microsecond pri to seconds
+(define (pri-in-seconds pri-micro) (* pri-micro 1e-6))
+
+;Apparently racket does not have a cotangent, so this calculates the cot
+(define (cot x) (/ (sin x) (cos x)))
+
+;;;Gets the number of samples required for a given duration. Duration is in seconds
+;;;Rounds up to the nearest whole number. Might need to add a window so that we don't clip whatever we're sampling todo
+(define (num-samples-for-duration sample-params s)
+  (ceiling(/ s (sampling-params-T sample-params))))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;Plotting related utility functions
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+;;;Returns the x axis required for plotting the samples
+;;;Need the sample params because we use the sampling period to determine the x-axis points
+;;i.e, x(0) = sampling-period * 0, x(5) = sampling-period * 5, and so on
+(define (get-sample-x-axis num-of-samples samp-params)
+  (for/list ([i (in-range num-of-samples)])
+    (* (sampling-params-T samp-params )i)
+  ))
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;Types
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 
 ;;;A struct representing the parameters we're using to sample a signal
 ;;;fs = sampling speed
@@ -12,21 +50,35 @@
 (define (make-sampling-params fs start-time)
   (sampling-params fs start-time (/ 1.0 fs)))
 
-;;;Gets the number of samples required for a given duration. Duration is in seconds
-;;;Rounds up to the nearest whole number. Might need to add a window so that we don't clip whatever we're sampling todo
-(define (num-samples-for-duration sample-params s)
-  (ceiling(/ s (sampling-params-T sample-params))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;Function based sample creation
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;;;Creates the samples for a sin wave
-(define ((sin-wave-sample-func samp-params f start-time  )  i)
-  (if (= i 0) (sin (* 2 pi start-time))
-      (sin (* 2 pi f (+ start-time (* i (sampling-params-T samp-params)))))))
+(define ((sin-wave-sample-func samp-params f start-time  )  x)
+  (if (= x 0) (sin (* 2 pi start-time))
+      (sin (* 2 pi f (+ start-time (* x (sampling-params-T samp-params)))))))
 
+
+;;;Uses the sawtooth function of the form y(x) = - 2a/pi * arctan (cot (pi*x/f))
+;;;Not using amplitude at the moment
+;;;cotan-arg is the cotangent part that's the input to the arctan
+(define ((sawtooth-sample-func samp-params f start-time )x)
+  (let ([cotan-arg (cot (/ (* pi x) f))])
+    (* (/ 2 pi) (atan cotan-arg))))
+  
+  
 ;;;Applies a sign function to the input function which is function-being-converted.
 ;;;Rreturns 0 for all values <= 0 and 1 otherwise.
-(define ((square-func function-being-converted samp-params f start-time  )  i)
-  (define sample-value ((function-being-converted samp-params f start-time) i))
+(define ((square-func function-being-converted samp-params f start-time  )  x)
+  (define sample-value ((function-being-converted samp-params f start-time) x))
   (if (<= sample-value 0) 0 1))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;Sample-period bnased sample creation
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;;;f = frequency
 ;;;duration = second duration. Equivalent to pulse-width for how the function is being used here. 
@@ -40,49 +92,59 @@
   (for/list ([x (in-range samples-needed)])
     ((sample-creation-func samp-params f start-time) x)))
 
+;Creates a single pulse of a certain pulse width
+(define (create-pulse  sample-creation-func samp-params f start-time pulse-width)
+  (define pw (pw-in-seconds pulse-width))
+  (create-samples sample-creation-func samp-params f start-time pw))
+
+;Calculates the off-time between pulses for a given pri and pulse width
+;todo make the off time samples into a let to make it more clear
+(define (calculate-pulse-off-time samp-params pri-micro pw-micro)
+  (define off-time-samples-needed (exact-ceiling (/ (- (pri-in-seconds pri-micro) (pw-in-seconds pw-micro) (sampling-params-T samp-params)))))
+   (build-list off-time-samples-needed (const '0)))
+
 ;Combines samples together, n number of times, spaced apart t seconds
 ;pri parameter in microseconds
 ;pulse-width parameter is in microseconds
-;Todo this isn't complete yet
-(define (create-pulse-group sample-creation-func samp-params f start-time pulse-width pri n)
-  (define pri-in-seconds (* pri 1e-6))
-  (define pw-in-seconds (* pulse-width 1e-6))
-  (define off-time-samples-needed (exact-ceiling (/ (+ pri-in-seconds pw-in-seconds) (sampling-params-T samp-params))))
-  (define off-time-samples (build-list off-time-samples-needed (const '0)))
-  (define on-time-samples (create-samples sample-creation-func samp-params f start-time pw-in-seconds))
-  (define combined-samples (for/list ([i (in-range n)]) ( cons on-time-samples off-time-samples )))
-  (flatten combined-samples)
-  )
-  
-;;;Returns the x axis required for plotting the samples
-;;;Need the sample params because we use the sampling period to determine the x-axis points
-;;i.e, x(0) = sampling-period * 0, x(5) = sampling-period * 5, and so on
-(define (get-sample-x-axis num-of-samples samp-params)
-  (for/list ([i (in-range num-of-samples)])
-    i)
-  )
+;Todo this isn't complete yet, I don't think it does what I want it to do
+;todo make sure that we just use one pulse width rather than the converted and non converted version
+(define (create-pulse-train sample-creation-func samp-params f start-time pri pulse-width n)
+  (define pulse (create-pulse sample-creation-func samp-params f start-time pulse-width))
+  (define off-time (calculate-pulse-off-time samp-params pri pulse-width))
+  (flatten (make-list n (cons pulse off-time))))
+
+
+
+ ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Declarations of values used for testing
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
 ;Testing parameters
-(define test-sample-params (make-sampling-params  44100 1))
+(define test-sample-params (make-sampling-params  576000 1))
 (define test-start-time 0)
 (define test-stop-time 10)
-(define test-duration 3)
-(define test-freq 300)
+(define test-duration 0.1)
+(define test-freq 5000)
 (define num-samps (num-samples-for-duration test-sample-params test-duration))
-(define test-pulse-width 10000)
-(define test-pri 10000)
+(define test-pulse-width 100) 
+(define test-pri 1000)
+(define test-micro-pw (pw-in-seconds test-pulse-width))
 
-(define test-samples   (create-samples sin-wave-sample-func test-sample-params test-freq test-start-time test-duration))
-(define test-samples-x-axis    (for/list ([i (in-range (length test-samples))]) i))
-(define test-samples-plot-points (map vector test-samples-x-axis test-samples))
-(plot (lines test-samples-plot-points))
 
-(define pulse-group-samples (create-pulse-group sin-wave-sample-func test-sample-params test-freq test-start-time test-pulse-width test-pri 5))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Plotting things. This is basically the main section of the script
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(define pulse-group-samples (create-pulse-train sin-wave-sample-func test-sample-params test-freq test-start-time test-pri test-pulse-width  3))
 (define pulse-group-x-axis (get-sample-x-axis (length pulse-group-samples) test-sample-params))
-
-
-;(define pulse-group-x-axis    (for/list ([i (in-range (length pulse-group-samples))]) i))
-(define pulse-group-plot-points (map vector pulse-group-x-axis pulse-group-samples));
+(define pulse-group-plot-points (map vector pulse-group-x-axis pulse-group-samples))
 (plot (lines pulse-group-plot-points))
+
+(define sawtooth-samples (create-samples sawtooth-sample-func test-sample-params test-freq test-start-time test-duration))
+(define sawtooth-x-axis (get-sample-x-axis (length sawtooth-samples) test-sample-params))
+(define sawtooth-plot-points (map vector sawtooth-x-axis sawtooth-samples))
+(plot (lines sawtooth-plot-points))
+
+
 
