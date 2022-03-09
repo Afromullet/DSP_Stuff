@@ -77,8 +77,13 @@
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;Sample-period bnased sample creation
+;Sample Combination - These functions combin samples in one way or another
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;No categoryt name
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 
 ;;;f = frequency
 ;;;duration = second duration. Equivalent to pulse-width for how the function is being used here. 
@@ -87,10 +92,17 @@
 ;;;every function that's passed to this must follow the ((functame samp-params f start-time  )  i) parameter name. todo document this
 ;;;func is the function we're sampling
 ;;sample-creation-func = the function we're getting the samples of
+;Creates samples
 (define (create-samples sample-creation-func samp-params f start-time duration)
   (define samples-needed (num-samples-for-duration samp-params duration))
   (for/list ([x (in-range samples-needed)])
     ((sample-creation-func samp-params f start-time) x)))
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;Sample-period bnased sample creation
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;Creates a single pulse of a certain pulse width
 (define (create-pulse  sample-creation-func samp-params f start-time pulse-width)
