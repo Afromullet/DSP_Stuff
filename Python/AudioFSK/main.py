@@ -6,11 +6,14 @@ Created on Fri Apr  8 15:29:22 2022
 """
 
 import numpy as np
-from scipy.io.wavfile import write
 from collections import namedtuple
 from csv import DictReader
 import wave
 import random
+import struct
+from scipy import signal
+import matplotlib.pyplot as plt
+
 
 '''
 Stores the samples of a note.
@@ -38,7 +41,6 @@ def read_ascii_table():
     for ascii_value in ascii_csv_file:
         ascii_mappings.append(  Ascii_Mappings(ascii_value['letter'], ascii_value['binary']) )
     return ascii_mappings
-
 
 def get_wave(freq,fs=44100,duration=0.1):
     '''
@@ -111,18 +113,23 @@ def read_message_from_wav(fname):
     print ( "Frame rate.",obj.getframerate())
     print ("Number of frames",obj.getnframes())
     print ( "parameters:",obj.getparams())
-    a = obj.getnframes()
-    print(a)
-    obj.close()
+    
+    frames = []
+    num_frames = obj.getnframes()
+    for frame in range(num_frames):
+        samples = struct.unpack("<h", obj.readframes(1))
+        frames.append(samples[0])
+    return frames
+   
     
     
-def basic_message_example():
+def basic_message_example(fname,message):
     C4_freq = 261.63
     B4_freq = 493.88
     
-    fname = "testfile1"
+ 
     a_table = read_ascii_table()
-    message = "I cast a fireball"
+ 
     C4_Octave = get_piano_notes(C4_freq)
     B4_Octave = get_piano_notes(B4_freq)
     
@@ -148,6 +155,7 @@ def basic_message_example():
     
     write_message_to_wav(message,a_table,symbols,fname,4,2)
     read_message_from_wav(fname)
+    return symbols
     
     
 def create_random_symbol_groups(base_freq_1,base_freq_2):
@@ -167,7 +175,6 @@ def create_random_symbol_groups(base_freq_1,base_freq_2):
         random_indices = random.sample(range(len(symbol_set)),len(symbol_set))
         for j,rand_num in enumerate(random_indices):
             random_octave = octave[rand_num]
-            current_symbol = symbol_set[j]
             symbol =  Symbol(
                 Note(random_octave,get_wave(note_frequencies[i][random_octave])),
                 symbol_set[j])
@@ -180,10 +187,25 @@ Test data
 
 '''
 
-symbols = create_random_symbol_groups(261.63,493.88)
+#symbols = create_random_symbol_groups(261.63,493.88)
+#write_message_to_wav(message,a_table,symbols,fname,bits_per_symbol=4,bytes_per_sample=2)
 
 fname = "testfile1"
 a_table = read_ascii_table()
-message = "I cast a fireball"
-write_message_to_wav(message,a_table,symbols,fname,bits_per_symbol=4,bytes_per_sample=2)
-#basic_message_example()
+message = "abc"
+
+frames = read_message_from_wav("testfile1")
+sybmol_decoder = basic_message_example(fname,message)
+
+
+fig,ax = plt.subplots()
+Fs = 44100
+N = 10240
+X = np.abs(np.fft.fft(frames)) / Fs
+freq = np.fft.fftfreq(N, d=1/Fs)
+X = X[:N//2]
+freq = freq[:N//2]
+ax.plot(freq, X, c='k')
+
+plt.xlabel('Frequency (Hz)')
+plt.tight_layout()
