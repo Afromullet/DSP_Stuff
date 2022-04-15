@@ -13,6 +13,7 @@ import random
 import struct
 from scipy import signal
 import matplotlib.pyplot as plt
+from scipy.signal import butter, sosfilt, sosfreqz
 
 
 '''
@@ -26,9 +27,16 @@ Note = namedtuple("Note", "note samples")
 A note maps to a symbol
 Also immutable, so we use a named tuple instead of a dict
 '''
-Symbol = namedtuple("Symbol", "note bit")
+Symbol = namedtuple("Symbol", "note bit freq")
 
 Ascii_Mappings = namedtuple("Ascii_Mappings", "letter binary")
+
+'''
+Knowing the symbol duration lets us know how large our FFT slices should be
+'''
+Encoding_Params = namedtuple("Encoding_Params", "fs symbol_duration")
+
+
 
 def read_ascii_table():
     '''
@@ -54,13 +62,12 @@ def get_wave(freq,fs=44100,duration=0.1):
 
 def get_piano_notes(base_freq):
     '''
-    Returns a dict object for all the piano 
-    note's frequencies
+    Returns a dict object for all the piano note's frequencies
     '''
     # White keys are in Uppercase and black keys (sharps) are in lowercase
     octave = ['C', 'c', 'D', 'd', 'E', 'F', 'f', 'G', 'g', 'A', 'a', 'B'] 
     note_freqs = {octave[i]: base_freq * pow(2,(i/12)) for i in range(len(octave))}        
-    note_freqs[''] = 0.0 # silent note
+    #note_freqs[''] = 0.0 # silent note todo figure out whether there's an impact for removing this
     
     return note_freqs
   
@@ -83,7 +90,7 @@ def convert_letter_to_notes(letter,symbol_list,a_mappings,bits_per_symbol):
     binary = create_binary_from_ascii_letter(letter,a_mappings)
 
     if len(binary):
-        binary = ''.join((map(str,binary)))
+        binary = ''.join((map(str,binary))) #Originally a list and we want a string..Todo just use binary[0] in the future
   
         for i in range(len(binary)-(bits_per_symbol-1)):    
             symbol = [value.note for value in symbol_list if value.bit == binary[i:i+bits_per_symbol]] 
@@ -108,11 +115,11 @@ def write_message_to_wav(msg,a_table,symbols,fname,bits_per_symbol,bytes_per_sam
 def read_message_from_wav(fname):
     
     obj = wave.open(fname + ".wav",'r')
-    print( "Number of channels",obj.getnchannels())
-    print ( "Sample width",obj.getsampwidth())
-    print ( "Frame rate.",obj.getframerate())
-    print ("Number of frames",obj.getnframes())
-    print ( "parameters:",obj.getparams())
+    # print( "Number of channels",obj.getnchannels())
+    # print ( "Sample width",obj.getsampwidth())
+    # print ( "Frame rate.",obj.getframerate())
+    # print ("Number of frames",obj.getnframes())
+    # print ( "parameters:",obj.getparams())
     
     frames = []
     num_frames = obj.getnframes()
@@ -133,29 +140,35 @@ def basic_message_example(fname,message):
     C4_Octave = get_piano_notes(C4_freq)
     B4_Octave = get_piano_notes(B4_freq)
     
-
+    
+    #todo get min and max freq of both octaves
+    
+    encoding_params = Encoding_Params((44100), 0.1)
+    freq_ranges = [get_symbol_freq_range(C4_Octave),get_symbol_freq_range(B4_Octave)]
+    
+    
     symbols = [
-    Symbol( Note("A",get_wave(C4_Octave['A'])),"0000"),
-    Symbol( Note("B",get_wave(C4_Octave['B'])),"0001"),
-    Symbol( Note("C",get_wave(C4_Octave['C'])),"0010"),
-    Symbol( Note("D",get_wave(C4_Octave['D'])),"0011"),
-    Symbol( Note("A",get_wave(B4_Octave['A'])),"0100"),
-    Symbol( Note("B",get_wave(B4_Octave['B'])),"0101"),
-    Symbol( Note("C",get_wave(B4_Octave['C'])),"0110"),
-    Symbol( Note("D",get_wave(B4_Octave['D'])),"0111"),
-    Symbol( Note("E",get_wave(C4_Octave['E'])),"1000"),
-    Symbol( Note("F",get_wave(C4_Octave['F'])),"1001"),
-    Symbol( Note("G",get_wave(C4_Octave['G'])),"1010"),
-    Symbol( Note("E",get_wave(B4_Octave['E'])),"1011"),
-    Symbol( Note("F",get_wave(B4_Octave['F'])),"1100"),
-    Symbol( Note("G",get_wave(B4_Octave['G'])),"1101"),
-    Symbol( Note("a",get_wave(C4_Octave['a'])),"1110"),
-    Symbol( Note("a",get_wave(B4_Octave['a'])),"1111")
+    Symbol( Note("A",get_wave(C4_Octave['A'],encoding_params.fs,encoding_params.symbol_duration)),"0000",C4_Octave['A']),
+    Symbol( Note("B",get_wave(C4_Octave['B'],encoding_params.fs,encoding_params.symbol_duration)),"0001",C4_Octave['B']),
+    Symbol( Note("C",get_wave(C4_Octave['C'],encoding_params.fs,encoding_params.symbol_duration)),"0010",C4_Octave['C']),
+    Symbol( Note("D",get_wave(C4_Octave['D'],encoding_params.fs,encoding_params.symbol_duration)),"0011",C4_Octave['D']),
+    Symbol( Note("A",get_wave(B4_Octave['A'],encoding_params.fs,encoding_params.symbol_duration)),"0100",B4_Octave['A']),
+    Symbol( Note("B",get_wave(B4_Octave['B'],encoding_params.fs,encoding_params.symbol_duration)),"0101",B4_Octave['B']),
+    Symbol( Note("C",get_wave(B4_Octave['C'],encoding_params.fs,encoding_params.symbol_duration)),"0110",B4_Octave['C']),
+    Symbol( Note("D",get_wave(B4_Octave['D'],encoding_params.fs,encoding_params.symbol_duration)),"0111",B4_Octave['D']),
+    Symbol( Note("E",get_wave(C4_Octave['E'],encoding_params.fs,encoding_params.symbol_duration)),"1000",C4_Octave['E']),
+    Symbol( Note("F",get_wave(C4_Octave['F'],encoding_params.fs,encoding_params.symbol_duration)),"1001",C4_Octave['F']),
+    Symbol( Note("G",get_wave(C4_Octave['G'],encoding_params.fs,encoding_params.symbol_duration)),"1010",C4_Octave['G']),
+    Symbol( Note("E",get_wave(B4_Octave['E'],encoding_params.fs,encoding_params.symbol_duration)),"1011",B4_Octave['E']),
+    Symbol( Note("F",get_wave(B4_Octave['F'],encoding_params.fs,encoding_params.symbol_duration)),"1100",B4_Octave['F']),
+    Symbol( Note("G",get_wave(B4_Octave['G'],encoding_params.fs,encoding_params.symbol_duration)),"1101",B4_Octave['G']),
+    Symbol( Note("a",get_wave(C4_Octave['a'],encoding_params.fs,encoding_params.symbol_duration)),"1110",C4_Octave['a']),
+    Symbol( Note("a",get_wave(B4_Octave['a'])),"1111",B4_Octave['a'])
     ]
     
     write_message_to_wav(message,a_table,symbols,fname,4,2)
     read_message_from_wav(fname)
-    return symbols
+    return symbols,encoding_params,freq_ranges
     
     
 def create_random_symbol_groups(base_freq_1,base_freq_2):
@@ -169,6 +182,7 @@ def create_random_symbol_groups(base_freq_1,base_freq_2):
     octave = ['C', 'c', 'D', 'd', 'E', 'F', 'f', 'G', 'g', 'A', 'a', 'B'] 
     note_frequencies = [get_piano_notes(base_freq_1),get_piano_notes(base_freq_2)] #List of lists, where each sublist are all the octaves of a base frequency
 
+    #todo add frequency argumetn to the symbol init
     symbols = [] 
     for i,symbol_set in enumerate(symbol_sets):
         #Creates a list of random indices for a symbol set. The index will be used to select a random note. 
@@ -181,6 +195,30 @@ def create_random_symbol_groups(base_freq_1,base_freq_2):
             symbols.append(symbol)
        
     return symbols
+
+def get_symbol_freq_range(freq_list):
+    
+    '''
+    Returns the minimum and maximum frequency of the octave.
+    Might use more than music notes in the future so we use min and max 
+    Instead of defaulting to the start and end note of a scale
+    
+    '''
+    return {"low" : min(freq_list.values()), "high" : max(freq_list.values())}
+  
+    
+  
+def butter_bandpass(lowcut, highcut, fs, order=5):
+        nyq = 0.5 * fs
+        low = lowcut / nyq
+        high = highcut / nyq
+        sos = butter(order, [low, high], analog=False, btype='band', output='sos')
+        return sos
+
+def butter_bandpass_filter(data, lowcut, highcut, fs, order=5):
+        sos = butter_bandpass(lowcut, highcut, fs, order=order)
+        y = sosfilt(sos, data)
+        return y
     
 '''
 Test data
@@ -192,20 +230,23 @@ Test data
 
 fname = "testfile1"
 a_table = read_ascii_table()
-message = "abc"
+message = "cba"
 
+
+symbols,encoding_params,freq_ranges = basic_message_example(fname,message)
 frames = read_message_from_wav("testfile1")
-sybmol_decoder = basic_message_example(fname,message)
+
+octave1_filtered = butter_bandpass_filter(frames,freq_ranges[0]["low"],freq_ranges[0]["high"],encoding_params.fs)
+octave2_filtered = butter_bandpass_filter(frames,freq_ranges[1]["low"],freq_ranges[1]["high"],encoding_params.fs)
+frames = octave1_filtered + octave2_filtered
+
+f, t, Zxx = signal.stft(frames, encoding_params.fs, nperseg=2056)
 
 
 fig,ax = plt.subplots()
-Fs = 44100
-N = 10240
-X = np.abs(np.fft.fft(frames)) / Fs
-freq = np.fft.fftfreq(N, d=1/Fs)
-X = X[:N//2]
-freq = freq[:N//2]
-ax.plot(freq, X, c='k')
-
-plt.xlabel('Frequency (Hz)')
-plt.tight_layout()
+plt.pcolormesh(t, f, np.abs(Zxx), vmin=0, vmax=2500, shading='gouraud')
+ax.set_ylim(0,2500)
+plt.title('STFT lol wtf')
+plt.ylabel('Frequency [Hz]')
+plt.xlabel('Time [sec]')
+plt.show()
