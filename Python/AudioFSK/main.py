@@ -7,7 +7,7 @@ Created on Fri Apr  8 15:29:22 2022
 
 import numpy as np
 from collections import namedtuple
-from csv import DictReader
+from csv import DictReader,writer
 import wave
 import random
 import struct
@@ -129,21 +129,59 @@ def convert_letter_to_notes(letter,symbol_list,a_mappings,bits_per_symbol):
             yield symbol[0]
      
    
-     
+#Added some debug code todo remove later    
 def write_message_to_wav(msg,a_table,symbols,fname,bits_per_symbol,bytes_per_sample,fs=44100):
     
     f = wave.open(fname + ".wav", "w")
     f.setnchannels(1)
     f.setsampwidth(bytes_per_sample)   # 2 bytes per sample.
     f.setframerate(fs)
+    
+    debug_file = open("debug_freqs_written_to_wav.csv","w",newline="") #debug filehandle
+    header = ["Binary","Freq"]
+    deb_writer = writer(debug_file)
+    deb_writer.writerow(header)
+    
+    
     for letter in msg:
        
         symbol_generator = convert_letter_to_notes(letter,symbols,a_table,bits_per_symbol)
         audio = []        
+        
+        
+        notes_written_debug = [] #Debug list that keeps tracks of the notes written to the wav file
         for val in symbol_generator:
-            audio = val.samples * (16300/np.max(val.samples)) # Adjusting the Amplitude     
+            
+            notes_written_debug.append([val[0],val[1]]) #Storing the samples too...
+            audio = val.samples * (16300/np.max(val.samples)) # Adjusting the Amplitude   
             f.writeframes(audio.astype(np.int16).tobytes())
+            
+        
+        #Debug stuff in loop below
+        out_line = []
+        for note in notes_written_debug:
+            deb_writer.writerow
+            written_freq_data = get_freq_from_note(note,symbols)
+            deb_writer.writerow([written_freq_data[1],written_freq_data[2]])
+            
+           
+           
     f.close()
+    debug_file.close()
+    
+def get_freq_from_note(note,symbols):
+    '''
+    Gets the frequency of a note
+    Returns a list containing [Note, binary, frequency]
+    '''
+    
+    for sym in symbols:
+        #Checking if the samples are equal...Not the best way to do it, but this is just something quick for debug
+        if note[0] == sym[0][0] and np.array_equal(note[1],sym[0][1]):
+            return [note[0],sym[1],sym[2]]
+            
+ 
+    return [] #Can't find the symbol. Something really went wrong here
     
     
 def read_message_from_wav(fname):
@@ -273,7 +311,7 @@ def plot_stft(t,f,Zxx):
     fig,ax = plt.subplots()
     plt.pcolormesh(t, f, np.abs(Zxx), vmin=0, vmax=2500, shading='gouraud')
     ax.set_ylim(0,2500)
-    plt.title('STFT abc')
+    plt.title('Message Components')
     plt.ylabel('Frequency [Hz]')
     plt.xlabel('Time [sec]')
     plt.show()
@@ -285,6 +323,32 @@ def __get_all_freqs_from_symbols__(symbols):
     return [sym.freq for sym in symbols]
 
     
+def create_expected_symbols_debug_file(symbols,binary):
+    '''
+    Takes a symbol mapping and binary strings as input
+    Outputs a CSV file with the expected frequencies 
+    '''
+    
+    
+
+    with open('expected_symbol_debug.csv','w',newline="") as symDebug:
+        debWriter = writer(symDebug)
+        header = ["Binary","Freq"]
+        
+        debWriter.writerow(header)
+        lower = ""
+        upper = ""
+        for bits in binary:
+           
+            
+            lower = [[sym[1],sym[2]] for sym in symbols if sym[1] == bits[0][:4]]  
+            upper = [[sym[1],sym[2]] for sym in symbols if sym[1] == bits[0][4:]]
+            #debWriter.writerow([bits[0],lower[0][0],lower[0][1],upper[0][0],upper[0][1]])
+            
+            debWriter.writerow([lower[0][0],lower[0][1]])
+            debWriter.writerow([upper[0][0],upper[0][1]])
+  
+    
 '''
 Test data
 
@@ -295,13 +359,19 @@ Test data
 
 fname = "testfile2"
 a_table = read_ascii_table()
-message = "a"
+message = "abc"
 
 
 binary = [create_binary_from_ascii_letter(letter,a_table) for letter in message]
 
 symbols,encoding_params,freq_ranges = basic_message_example(fname,message)
 frames = read_message_from_wav(fname)
+
+
+
+
+create_expected_symbols_debug_file(symbols,binary)   
+    
 
 f, t, Zxx = signal.stft(frames, encoding_params.fs, nperseg=2056)
 plot_stft(t,f,Zxx)
@@ -326,7 +396,7 @@ for i in range(0,len(freqs) - 1,2):
         
         freq1_diff = np.abs(sym.freq-freqs[i])
         freq2_diff = np.abs(sym.freq-freqs[i+1])
-        print(freq2_diff)
+     
         if freq1_diff >= 0 and freq1_diff <= 1:
             symbol_pair[0] = sym.bit
           
@@ -342,13 +412,13 @@ for i in range(0,len(freqs) - 1,2):
         
 letters = []
 
-print("start")
-for binary in decoded_symbols:
-    print(binary)
-    letters.append(get_ascii_from_binary(binary,a_table)) 
+# print("start")
+# for binary in decoded_symbols:
+#     print(binary)
+#     letters.append(get_ascii_from_binary(binary,a_table)) 
        
 
     
-sym_freqs = __get_all_freqs_from_symbols__(symbols)
+# sym_freqs = __get_all_freqs_from_symbols__(symbols)
     
 
