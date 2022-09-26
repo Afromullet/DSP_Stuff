@@ -18,6 +18,19 @@ from scipy.signal import butter, sosfilt
 from itertools import zip_longest
 
 
+
+
+'''
+DEBUG NOTES
+
+Writes the correct frequencies to the file
+
+Does not read the correct frequencies in. Read in too many frequencies
+
+
+'''
+
+
 '''
 Stores the samples of a note.
 This will serve as a reference to compare the samples of notes played by instruments.
@@ -99,10 +112,6 @@ def get_ascii_from_binary(binary,mapping_table):
         if value.binary == binary:
             return value
 
-        
- 
-
-
 def convert_letter_to_notes(letter,symbol_list,a_mappings,bits_per_symbol):
     '''
     Returns the notes required for a letter
@@ -142,7 +151,7 @@ def write_message_to_wav(msg,a_table,symbols,fname,bits_per_symbol,bytes_per_sam
     deb_writer = writer(debug_file)
     deb_writer.writerow(header)
     
-    
+    num_times_written_to_wav = 0
     for letter in msg:
        
         symbol_generator = convert_letter_to_notes(letter,symbols,a_table,bits_per_symbol)
@@ -156,6 +165,8 @@ def write_message_to_wav(msg,a_table,symbols,fname,bits_per_symbol,bytes_per_sam
             audio = val.samples * (16300/np.max(val.samples)) # Adjusting the Amplitude   
             f.writeframes(audio.astype(np.int16).tobytes())
             
+            num_times_written_to_wav += 1
+            
         
         #Debug stuff in loop below
         out_line = []
@@ -165,7 +176,8 @@ def write_message_to_wav(msg,a_table,symbols,fname,bits_per_symbol,bytes_per_sam
             deb_writer.writerow([written_freq_data[1],written_freq_data[2]])
             
            
-           
+    deb_writer.writerow(["Num Times written to wav"])   
+    deb_writer.writerow([num_times_written_to_wav])  
     f.close()
     debug_file.close()
     
@@ -329,11 +341,11 @@ def create_expected_symbols_debug_file(symbols,binary):
     Outputs a CSV file with the expected frequencies 
     '''
     
-    
-
-    with open('expected_symbol_debug.csv','w',newline="") as symDebug:
+    with open('debug_expected_symbol.csv','w',newline="") as symDebug:
         debWriter = writer(symDebug)
         header = ["Binary","Freq"]
+        
+        expected_num_frequencies = 0 
         
         debWriter.writerow(header)
         lower = ""
@@ -347,6 +359,33 @@ def create_expected_symbols_debug_file(symbols,binary):
             
             debWriter.writerow([lower[0][0],lower[0][1]])
             debWriter.writerow([upper[0][0],upper[0][1]])
+            
+            expected_num_frequencies += 2
+            
+      
+        debWriter.writerow([["Expected Number of Frequencies"]])
+        debWriter.writerow([[expected_num_frequencies]])
+        
+def write_read_frequencies_to_file(frequencies):
+    '''
+    Debug function that writes the frequencies read from the wav file to a csv. After performing short time fft
+    '''
+      
+    
+   
+    with open("debug_freqs_read_from_wav_stfft.csv","w",newline="") as freq_debug:
+        header = ["Frequency"]
+    
+        deb_writer = writer(freq_debug)
+        
+        deb_writer.writerow(header)
+    
+        for freq in frequencies:
+            deb_writer.writerow([round(freq,3)])
+            
+            
+            
+        
   
     
 '''
@@ -359,7 +398,7 @@ Test data
 
 fname = "testfile2"
 a_table = read_ascii_table()
-message = "abc"
+message = "z"
 
 
 binary = [create_binary_from_ascii_letter(letter,a_table) for letter in message]
@@ -373,7 +412,13 @@ frames = read_message_from_wav(fname)
 create_expected_symbols_debug_file(symbols,binary)   
     
 
-f, t, Zxx = signal.stft(frames, encoding_params.fs, nperseg=2056)
+
+samples_needed_for_symbol = encoding_params.symbol_duration / (1/encoding_params.fs)
+print(encoding_params.symbol_duration,samples_needed_for_symbol)
+
+
+# f, t, Zxx = signal.stft(frames, encoding_params.fs, nperseg=2056)
+f, t, Zxx = signal.stft(frames, encoding_params.fs, nperseg=samples_needed_for_symbol)
 plot_stft(t,f,Zxx)
 
 N = 600
@@ -386,6 +431,7 @@ plt.show()
 
 
 freqs = get_frequencies(Zxx,f)
+write_read_frequencies_to_file(freqs)
 
 pairs = []
 decoded_symbols = []
