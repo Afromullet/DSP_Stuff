@@ -51,7 +51,7 @@ Knowing the symbol duration lets us know how large our FFT slices should be
 '''
 Encoding_Params = namedtuple("Encoding_Params", "fs symbol_duration")
 
-
+zero_freq_samples = None
 
 def grouper(iterable, n, fillvalue=None):
     '''
@@ -93,6 +93,14 @@ def get_piano_notes(base_freq):
     #note_freqs[''] = 0.0 # silent note todo figure out whether there's an impact for removing this
     
     return note_freqs
+
+def set_zero_freq(encoding_params):
+    '''
+    We write a "pause" after every note we write to a file, which is effectively a 0 freq/silence
+    '''
+    global zero_freq_samples            
+    num_samples_per_symbol = encoding_params.symbol_duration / (1/encoding_params.fs)        
+    zero_freq_samples = np.zeros(int(num_samples_per_symbol))
   
 
 def create_binary_from_ascii_letter(letter,mapping_table):
@@ -140,7 +148,7 @@ def convert_letter_to_notes(letter,symbol_list,a_mappings,bits_per_symbol):
    
 #Added some debug code todo remove later    
 def write_message_to_wav(msg,a_table,symbols,fname,bits_per_symbol,bytes_per_sample,fs=44100):
-    
+    global zero_freq_samples
     f = wave.open(fname + ".wav", "w")
     f.setnchannels(1)
     f.setsampwidth(bytes_per_sample)   # 2 bytes per sample.
@@ -158,12 +166,17 @@ def write_message_to_wav(msg,a_table,symbols,fname,bits_per_symbol,bytes_per_sam
         audio = []        
         
         
+        #After every symbol, write "0 hertz" to it. That will help us read the symbols back
         notes_written_debug = [] #Debug list that keeps tracks of the notes written to the wav file
         for val in symbol_generator:
             
             notes_written_debug.append([val[0],val[1]]) #Storing the samples too...
             audio = val.samples * (16300/np.max(val.samples)) # Adjusting the Amplitude   
             f.writeframes(audio.astype(np.int16).tobytes())
+            
+            #Writing the pause here
+            #audio = zero_freq_samples * (16300/np.max(zero_freq_samples)) # Adjusting the Amplitude   
+            f.writeframes(zero_freq_samples.astype(np.int16).tobytes())            
             
             num_times_written_to_wav += 1
             
@@ -240,8 +253,9 @@ def basic_message_example(fname,message):
     Symbol( Note("a",get_wave(octave_2['a'])),"1111",octave_2['a'])
     ]
     
+    set_zero_freq(encoding_params)
     write_message_to_wav(message,a_table,symbols,fname,4,2)
-    read_message_from_wav(fname)
+    #read_message_from_wav(fname)
     return symbols,encoding_params,freq_ranges
     
     
@@ -384,9 +398,7 @@ def write_read_frequencies_to_file(frequencies):
             deb_writer.writerow([round(freq,3)])
             
             
-            
-        
-  
+
     
 '''
 Test data
@@ -398,12 +410,19 @@ Test data
 
 fname = "testfile2"
 a_table = read_ascii_table()
-message = "z"
+message = "a"
 
 
 binary = [create_binary_from_ascii_letter(letter,a_table) for letter in message]
 
 symbols,encoding_params,freq_ranges = basic_message_example(fname,message)
+
+
+
+
+
+# zero_freq_samples = np.zeros((encoding_params.symbol_duration / (1 /)))
+
 frames = read_message_from_wav(fname)
 
 
@@ -412,13 +431,11 @@ frames = read_message_from_wav(fname)
 create_expected_symbols_debug_file(symbols,binary)   
     
 
+samples_per_symbol = encoding_params.symbol_duration / (1/encoding_params.fs)
 
-samples_needed_for_symbol = encoding_params.symbol_duration / (1/encoding_params.fs)
-print(encoding_params.symbol_duration,samples_needed_for_symbol)
+# f, t, Zxx = signal.stft(frames, encoding_params.fs, nperseg=256)
+f, t, Zxx = signal.stft(frames, encoding_params.fs, nperseg=samples_per_symbol)
 
-
-# f, t, Zxx = signal.stft(frames, encoding_params.fs, nperseg=2056)
-f, t, Zxx = signal.stft(frames, encoding_params.fs, nperseg=samples_needed_for_symbol)
 plot_stft(t,f,Zxx)
 
 N = 600
@@ -433,30 +450,30 @@ plt.show()
 freqs = get_frequencies(Zxx,f)
 write_read_frequencies_to_file(freqs)
 
-pairs = []
-decoded_symbols = []
-for i in range(0,len(freqs) - 1,2):
+# pairs = []
+# decoded_symbols = []
+# for i in range(0,len(freqs) - 1,2):
   
-    symbol_pair = [0,0]
-    for sym in symbols:
+#     symbol_pair = [0,0]
+#     for sym in symbols:
         
-        freq1_diff = np.abs(sym.freq-freqs[i])
-        freq2_diff = np.abs(sym.freq-freqs[i+1])
+#         freq1_diff = np.abs(sym.freq-freqs[i])
+#         freq2_diff = np.abs(sym.freq-freqs[i+1])
      
-        if freq1_diff >= 0 and freq1_diff <= 1:
-            symbol_pair[0] = sym.bit
+#         if freq1_diff >= 0 and freq1_diff <= 1:
+#             symbol_pair[0] = sym.bit
           
-        if freq2_diff >= 0 and freq2_diff <= 1:
-            symbol_pair[1] = sym.bit       
+#         if freq2_diff >= 0 and freq2_diff <= 1:
+#             symbol_pair[1] = sym.bit       
             
             
-        if symbol_pair[0] != 0 and symbol_pair[1] != 0:
-            decoded_symbols.append(symbol_pair[0] + symbol_pair[1])
-            break
+#         if symbol_pair[0] != 0 and symbol_pair[1] != 0:
+#             decoded_symbols.append(symbol_pair[0] + symbol_pair[1])
+#             break
             
         
         
-letters = []
+# letters = []
 
 # print("start")
 # for binary in decoded_symbols:
