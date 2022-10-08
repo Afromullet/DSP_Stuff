@@ -433,18 +433,10 @@ create_expected_symbols_debug_file(symbols,binary)
 
 samples_per_symbol = encoding_params.symbol_duration / (1/encoding_params.fs)
 
-# f, t, Zxx = signal.stft(frames, encoding_params.fs, nperseg=256)
 f, t, Zxx = signal.stft(frames, encoding_params.fs, nperseg=samples_per_symbol)
 
 plot_stft(t,f,Zxx)
 
-N = 600
-yf = scipy.fft(frames)
-T = 1.0 / 800.0
-xf = np.linspace(0.0, 1.0/(2.0*T), N//2)
-fig, ax = plt.subplots()
-ax.plot(xf, 2.0/N * np.abs(yf[:N//2]))
-plt.show()
 
 
 freqs = get_frequencies(Zxx,f)
