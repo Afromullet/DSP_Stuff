@@ -17,17 +17,12 @@ import matplotlib.pyplot as plt
 from scipy.signal import butter, sosfilt
 from itertools import zip_longest
 
-
-
-
 '''
 DEBUG NOTES
 
 Writes the correct frequencies to the file
 
 Does not read the correct frequencies in. Read in too many frequencies
-
-
 '''
 
 
@@ -218,9 +213,7 @@ def read_message_from_wav(fname):
         samples = struct.unpack("<h", obj.readframes(1))
         frames.append(samples[0])
     return frames
-   
-    
-    
+       
 def basic_message_example(fname,message):
     octave_1_freq = 161.63
     ocatave_2_freq = 593.88
@@ -232,7 +225,7 @@ def basic_message_example(fname,message):
     
     #todo get min and max freq of both octaves think I already did this verify later 
     encoding_params = Encoding_Params((44100), 0.1)
-    freq_ranges = [get_symbol_freq_range(octave_1),get_symbol_freq_range(octave_2)]
+
     
     symbols = [
     Symbol( Note("A",get_wave(octave_1['A'],encoding_params.fs,encoding_params.symbol_duration)),"0000",octave_1['A']),
@@ -256,12 +249,48 @@ def basic_message_example(fname,message):
     set_zero_freq(encoding_params)
     write_message_to_wav(message,a_table,symbols,fname,4,2)
     #read_message_from_wav(fname)
-    return symbols,encoding_params,freq_ranges
+    return symbols,encoding_params
+
+def get_symbols_from_octave(fname,message,octave_1_freq,ocatave_2_freq):
+
     
+    a_table = read_ascii_table()
+ 
+    octave_1 = get_piano_notes(octave_1_freq)
+    octave_2 = get_piano_notes(ocatave_2_freq)
+    
+    #todo get min and max freq of both octaves think I already did this verify later 
+    encoding_params = Encoding_Params((44100), 0.1)
+
+    
+    symbols = [
+    Symbol( Note("A",get_wave(octave_1['A'],encoding_params.fs,encoding_params.symbol_duration)),"0000",octave_1['A']),
+    Symbol( Note("B",get_wave(octave_1['B'],encoding_params.fs,encoding_params.symbol_duration)),"0001",octave_1['B']),
+    Symbol( Note("C",get_wave(octave_1['C'],encoding_params.fs,encoding_params.symbol_duration)),"0010",octave_1['C']),
+    Symbol( Note("D",get_wave(octave_1['D'],encoding_params.fs,encoding_params.symbol_duration)),"0011",octave_1['D']),
+    Symbol( Note("A",get_wave(octave_2['A'],encoding_params.fs,encoding_params.symbol_duration)),"0100",octave_2['A']),
+    Symbol( Note("B",get_wave(octave_2['B'],encoding_params.fs,encoding_params.symbol_duration)),"0101",octave_2['B']),
+    Symbol( Note("C",get_wave(octave_2['C'],encoding_params.fs,encoding_params.symbol_duration)),"0110",octave_2['C']),
+    Symbol( Note("D",get_wave(octave_2['D'],encoding_params.fs,encoding_params.symbol_duration)),"0111",octave_2['D']),
+    Symbol( Note("E",get_wave(octave_1['E'],encoding_params.fs,encoding_params.symbol_duration)),"1000",octave_1['E']),
+    Symbol( Note("F",get_wave(octave_1['F'],encoding_params.fs,encoding_params.symbol_duration)),"1001",octave_1['F']),
+    Symbol( Note("G",get_wave(octave_1['G'],encoding_params.fs,encoding_params.symbol_duration)),"1010",octave_1['G']),
+    Symbol( Note("E",get_wave(octave_2['E'],encoding_params.fs,encoding_params.symbol_duration)),"1011",octave_2['E']),
+    Symbol( Note("F",get_wave(octave_2['F'],encoding_params.fs,encoding_params.symbol_duration)),"1100",octave_2['F']),
+    Symbol( Note("G",get_wave(octave_2['G'],encoding_params.fs,encoding_params.symbol_duration)),"1101",octave_2['G']),
+    Symbol( Note("a",get_wave(octave_1['a'],encoding_params.fs,encoding_params.symbol_duration)),"1110",octave_1['a']),
+    Symbol( Note("a",get_wave(octave_2['a'])),"1111",octave_2['a'])
+    ]
+    
+    set_zero_freq(encoding_params)
+    write_message_to_wav(message,a_table,symbols,fname,4,2)
+    #read_message_from_wav(fname)
+    return symbols,encoding_params
     
 def create_random_symbol_groups(base_freq_1,base_freq_2):
     
     '''
+    Does not work at the moment
     Uses 4 symbols per bit. Breaks down the symbols into two groups, each associated with a different octave
     Selects a random note from that octave and maps it to a symbol.
     Returns the symbol list
@@ -366,7 +395,7 @@ def create_expected_symbols_debug_file(symbols,binary):
         upper = ""
         for bits in binary:
            
-            
+    
             lower = [[sym[1],sym[2]] for sym in symbols if sym[1] == bits[0][:4]]  
             upper = [[sym[1],sym[2]] for sym in symbols if sym[1] == bits[0][4:]]
             #debWriter.writerow([bits[0],lower[0][0],lower[0][1],upper[0][0],upper[0][1]])
@@ -385,8 +414,6 @@ def write_read_frequencies_to_file(frequencies):
     Debug function that writes the frequencies read from the wav file to a csv. After performing short time fft
     '''
       
-    
-   
     with open("debug_freqs_read_from_wav_stfft.csv","w",newline="") as freq_debug:
         header = ["Frequency"]
     
@@ -403,7 +430,6 @@ def write_all_possible_freqs(symbols):
     Debug function that writes all of the possible frequencies that can be written to a file. 
     The freq info is stored in the symbol table passed as a parameter'''
     
-    
     with open("debug_all_possible_Freqs.csv","w",newline="") as freq_debug:
         
         header = ["Note,Frequency,Code"]
@@ -413,7 +439,13 @@ def write_all_possible_freqs(symbols):
             
 
             deb_writer.writerow([sym.note.note,sym.freq,sym[1]])
-            
+      
+def write_decoded_message_to_file(letters):
+    
+    with open('decoded_message.txt','w',newline="") as decoded_message:
+        
+        for l in letters:
+            decoded_message.write(l.letter)
             
 '''
 Test data
@@ -425,42 +457,36 @@ Test data
 
 fname = "testfile2"
 a_table = read_ascii_table()
-message = "ababa"
+message = "ababa fcd"
 
-
+encoding_params = Encoding_Params((44100), 0.1)
 
 binary = [create_binary_from_ascii_letter(letter,a_table) for letter in message]
 
-symbols,encoding_params,freq_ranges = basic_message_example(fname,message)
+#symbols,encoding_params = basic_message_example(fname,message)
+symbols,encoding_params = get_symbols_from_octave(fname,message,300,700)
+
+
 write_all_possible_freqs(symbols)
 
 frames = read_message_from_wav(fname)
 
 
-
-
 create_expected_symbols_debug_file(symbols,binary)   
-    
-
 samples_per_symbol = encoding_params.symbol_duration / (1/encoding_params.fs)
 
 f, t, Zxx = signal.stft(frames, encoding_params.fs, nperseg=samples_per_symbol)
 
 plot_stft(t,f,Zxx)
 
-
-
 freqs = get_frequencies(Zxx,f)
 write_read_frequencies_to_file(freqs)
-
 reduced_freqs = []
-
 
 #Don't know why it reads a single frequency back three times. This gets each written frequency only once
 for f in range(0,len(freqs),3):
     reduced_freqs.append((freqs[f]))
     
-
 pairs = []
 decoded_symbols = []
 for i in range(0,len(reduced_freqs) - 1,2):
@@ -483,7 +509,6 @@ for i in range(0,len(reduced_freqs) - 1,2):
             break
             
         
-        
 letters = []
 
 print("start")
@@ -495,5 +520,6 @@ for binary in decoded_symbols:
 for l in letters:
     print(l.letter)
 sym_freqs = __get_all_freqs_from_symbols__(symbols)
+write_decoded_message_to_file(letters)
     
 
