@@ -455,9 +455,9 @@ Test data
 #symbols = create_random_symbol_groups(261.63,493.88)
 #write_message_to_wav(message,a_table,symbols,fname,bits_per_symbol=4,bytes_per_sample=2)
 
-fname = "testfile2"
+fname = "encoded_message_example"
 a_table = read_ascii_table()
-message = "ababa fcd"
+message = "This is a message encoded by Blue Schnitzel"
 
 encoding_params = Encoding_Params((44100), 0.1)
 
