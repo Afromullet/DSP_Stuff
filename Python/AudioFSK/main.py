@@ -398,8 +398,23 @@ def write_read_frequencies_to_file(frequencies):
             deb_writer.writerow([round(freq,3)])
             
             
-
+def write_all_possible_freqs(symbols):
+    '''
+    Debug function that writes all of the possible frequencies that can be written to a file. 
+    The freq info is stored in the symbol table passed as a parameter'''
     
+    
+    with open("debug_all_possible_Freqs.csv","w",newline="") as freq_debug:
+        
+        header = ["Note,Frequency,Code"]
+        deb_writer = writer(freq_debug)
+        deb_writer.writerow(header)
+        for sym in symbols:
+            
+
+            deb_writer.writerow([sym.note.note,sym.freq,sym[1]])
+            
+            
 '''
 Test data
 
@@ -410,18 +425,14 @@ Test data
 
 fname = "testfile2"
 a_table = read_ascii_table()
-message = "a"
+message = "ababa"
+
 
 
 binary = [create_binary_from_ascii_letter(letter,a_table) for letter in message]
 
 symbols,encoding_params,freq_ranges = basic_message_example(fname,message)
-
-
-
-
-
-# zero_freq_samples = np.zeros((encoding_params.symbol_duration / (1 /)))
+write_all_possible_freqs(symbols)
 
 frames = read_message_from_wav(fname)
 
@@ -442,38 +453,47 @@ plot_stft(t,f,Zxx)
 freqs = get_frequencies(Zxx,f)
 write_read_frequencies_to_file(freqs)
 
-# pairs = []
-# decoded_symbols = []
-# for i in range(0,len(freqs) - 1,2):
-  
-#     symbol_pair = [0,0]
-#     for sym in symbols:
-        
-#         freq1_diff = np.abs(sym.freq-freqs[i])
-#         freq2_diff = np.abs(sym.freq-freqs[i+1])
-     
-#         if freq1_diff >= 0 and freq1_diff <= 1:
-#             symbol_pair[0] = sym.bit
-          
-#         if freq2_diff >= 0 and freq2_diff <= 1:
-#             symbol_pair[1] = sym.bit       
-            
-            
-#         if symbol_pair[0] != 0 and symbol_pair[1] != 0:
-#             decoded_symbols.append(symbol_pair[0] + symbol_pair[1])
-#             break
-            
-        
-        
-# letters = []
+reduced_freqs = []
 
-# print("start")
-# for binary in decoded_symbols:
-#     print(binary)
-#     letters.append(get_ascii_from_binary(binary,a_table)) 
+
+#Don't know why it reads a single frequency back three times. This gets each written frequency only once
+for f in range(0,len(freqs),3):
+    reduced_freqs.append((freqs[f]))
+    
+
+pairs = []
+decoded_symbols = []
+for i in range(0,len(reduced_freqs) - 1,2):
+  
+    symbol_pair = [0,0]
+    for sym in symbols:
+        
+        freq1_diff = np.abs(sym.freq-reduced_freqs[i])
+        freq2_diff = np.abs(sym.freq-reduced_freqs[i+1])
+     
+        if freq1_diff >= 0 and freq1_diff <= 6:
+            symbol_pair[0] = sym.bit
+          
+        if freq2_diff >= 0 and freq2_diff <= 6:
+            symbol_pair[1] = sym.bit       
+            
+            
+        if symbol_pair[0] != 0 and symbol_pair[1] != 0:
+            decoded_symbols.append(symbol_pair[0] + symbol_pair[1])
+            break
+            
+        
+        
+letters = []
+
+print("start")
+for binary in decoded_symbols:
+    print(binary)
+    letters.append(get_ascii_from_binary(binary,a_table)) 
        
 
-    
-# sym_freqs = __get_all_freqs_from_symbols__(symbols)
+for l in letters:
+    print(l.letter)
+sym_freqs = __get_all_freqs_from_symbols__(symbols)
     
 
